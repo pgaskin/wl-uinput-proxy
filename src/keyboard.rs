@@ -273,11 +273,10 @@ impl Keyboard {
                 .map_or(0, |s| s.raw());
             self.client.as_mut().unwrap().update_key(xkb_kc, KeyDirection::Down);
 
+            self.sync_passthrough();
             if is_modifier_keysym(sym) {
-                self.sync_passthrough();
                 return;
             }
-            self.sync_passthrough();
 
             let (out_kc, level_mods) = match self.reverse.as_ref().unwrap().lookup(sym) {
                 Some((kc, mods)) => (kc, mods.to_vec()),

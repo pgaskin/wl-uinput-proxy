@@ -313,7 +313,7 @@ impl ZwlrVirtualPointerV1Handler for Pointer {
 
 fn scale_abs(value: u32, extent: u32) -> i32 {
     if extent == 0 {
-        return (value as i32).clamp(0, ABS_MAX_VAL);
+        return (value as i64).clamp(0, ABS_MAX_VAL as i64) as i32;
     }
     ((value as i64 * ABS_MAX_VAL as i64) / extent as i64).clamp(0, ABS_MAX_VAL as i64) as i32
 }
