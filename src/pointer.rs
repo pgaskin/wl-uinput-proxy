@@ -218,6 +218,10 @@ impl ZwlrVirtualPointerV1Handler for Pointer {
         button: u32,
         state: WlPointerButtonState,
     ) {
+        if !(u32::from(BTN_LEFT)..=u32::from(BTN_TASK)).contains(&button) {
+            eprintln!("wl-uinput-proxy: ignoring unsupported pointer button {button:#x}");
+            return;
+        }
         let value = (state == WlPointerButtonState::PRESSED) as i32;
         self.dev.emit(EV_KEY, button as u16, value);
         self.dev.sync();

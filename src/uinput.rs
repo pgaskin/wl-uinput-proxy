@@ -140,7 +140,10 @@ impl UinputDevice {
         let bytes = unsafe { std::slice::from_raw_parts((&ev as *const input_event).cast::<u8>(), size) };
         let written = write(&self.fd, bytes)?;
         if written != size {
-            return Err(io::Error::last_os_error());
+            return Err(io::Error::new(
+                io::ErrorKind::WriteZero,
+                format!("short write ({written}/{size}"),
+            ));
         }
         Ok(())
     }
@@ -160,14 +163,14 @@ pub struct Device(pub Option<UinputDevice>);
 
 impl Device {
     pub fn emit(&self, ty: u16, code: u16, value: i32) {
-        if let Some(dev) = &self.0 {
-            let _ = dev.emit(ty, code, value);
+        if let Some(dev) = &self.0 && let Err(e) = dev.emit(ty, code, value) {
+            eprintln!("wl-uinput-proxy: failed to emit event ({ty:#x}, {code:#x}, {value}): {e}");
         }
     }
 
     pub fn sync(&self) {
-        if let Some(dev) = &self.0 {
-            let _ = dev.sync();
+        if let Some(dev) = &self.0 && let Err(e) = dev.sync() {
+            eprintln!("wl-uinput-proxy: failed to sync uinput device: {e}");
         }
     }
 }
