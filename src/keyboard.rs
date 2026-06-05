@@ -260,6 +260,11 @@ impl Keyboard {
     fn translate_key(&mut self, key: u32, press: bool) {
         let xkb_kc = key + 8;
         if press {
+            if self.pressed.contains_key(&key) {
+                // ignore a repeated press of an pressed key since re-emitting would
+                // leak the previous release and leave the key stuck on release
+                return;
+            }
             let sym = self
                 .client
                 .as_ref()
