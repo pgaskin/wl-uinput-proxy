@@ -52,6 +52,11 @@ const MOD_MAP: &[(u32, u16)] = &[
     (1 << 7, KEY_RIGHTALT),
 ];
 
+/// Modifiers that change the keysym level, and so must be set to exactly what a
+/// translated key needs (unlike the passthrough modifiers below, which are held
+/// across keys purely so keybindings see them).
+const LEVEL_MODS: &[u16] = &[KEY_LEFTSHIFT, KEY_RIGHTALT];
+
 /// Level modifier keys which only affect the xkb state and change the value of keysyms.
 pub fn is_modifier_keysym(sym: u32) -> bool {
     matches!(sym,
@@ -64,6 +69,12 @@ pub fn is_modifier_keysym(sym: u32) -> bool {
 }
 
 /// Modifier keys to pass through so keybindings work correctly.
+///
+/// Shift is included even though it's a level modifier since bindings and
+/// modified clicks (e.g. Alt+Shift+Click) need it to be actually held, so it's
+/// held here and temporarily released per-key in [`Keyboard::translate_key`]
+/// when a translated key needs a different shift state than the one held for
+/// the binding.
 pub fn passthrough_mod_keys(state: &State) -> Vec<u16> {
     let mut keys = Vec::new();
     let active = |name| {
@@ -71,6 +82,9 @@ pub fn passthrough_mod_keys(state: &State) -> Vec<u16> {
             .mod_name_is_active(name, StateComponent::MODS_EFFECTIVE)
             .unwrap_or(false)
     };
+    if active("Shift") {
+        keys.push(KEY_LEFTSHIFT);
+    }
     if active("Control") {
         keys.push(KEY_LEFTCTRL);
     }
@@ -166,7 +180,11 @@ impl ZwpVirtualKeyboardManagerV1Handler for KeyboardManager {
 
 struct Pressed {
     out_kc: u16,
-    level_mods: Vec<u16>,
+    /// Level mods we pressed on key-down and release on key-up.
+    pressed_mods: Vec<u16>,
+    /// Passthrough level mods we temporarily released on key-down and to press
+    /// again on key-up.
+    released_mods: Vec<u16>,
 }
 
 pub struct Keyboard {
@@ -276,22 +294,37 @@ impl Keyboard {
                 return;
             }
 
-            let (out_kc, level_mods) = match self.reverse.as_ref().unwrap().lookup(sym) {
+            let (out_kc, needed) = match self.reverse.as_ref().unwrap().lookup(sym) {
                 Some((kc, mods)) => (kc, mods.to_vec()),
                 None => (key as u16, Vec::new()), // fall back to the raw evdev code
             };
-            for &m in &level_mods {
-                self.dev.emit(EV_KEY, m, 1);
+            let mut pressed_mods = Vec::new();
+            let mut released_mods = Vec::new();
+            for &m in LEVEL_MODS {
+                match (needed.contains(&m), self.passthrough_held.contains(&m)) {
+                    (true, false) => {
+                        self.dev.emit(EV_KEY, m, 1);
+                        pressed_mods.push(m);
+                    }
+                    (false, true) => {
+                        self.dev.emit(EV_KEY, m, 0);
+                        released_mods.push(m);
+                    }
+                    _ => {} // already in the right state
+                }
             }
             self.dev.emit(EV_KEY, out_kc, 1);
             self.dev.sync();
-            self.pressed.insert(key, Pressed { out_kc, level_mods });
+            self.pressed.insert(key, Pressed { out_kc, pressed_mods, released_mods });
         } else {
             self.client.as_mut().unwrap().update_key(xkb_kc, KeyDirection::Up);
             if let Some(p) = self.pressed.remove(&key) {
                 self.dev.emit(EV_KEY, p.out_kc, 0);
-                for &m in p.level_mods.iter().rev() {
+                for &m in p.pressed_mods.iter().rev() {
                     self.dev.emit(EV_KEY, m, 0);
+                }
+                for &m in &p.released_mods {
+                    self.dev.emit(EV_KEY, m, 1); // restore the binding's level mods
                 }
                 self.dev.sync();
             }
@@ -376,7 +409,7 @@ impl ZwpVirtualKeyboardV1Handler for Keyboard {
         // release keys so they don't get stuck
         for (_key, p) in self.pressed.drain() {
             self.dev.emit(EV_KEY, p.out_kc, 0);
-            for &m in p.level_mods.iter().rev() {
+            for &m in p.pressed_mods.iter().rev() {
                 self.dev.emit(EV_KEY, m, 0);
             }
         }
