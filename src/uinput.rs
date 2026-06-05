@@ -3,6 +3,9 @@
 use std::{
     io, mem,
     os::fd::{AsRawFd, OwnedFd},
+    sync::mpsc::{self, Sender},
+    thread,
+    time::Duration,
 };
 
 use nix::{
@@ -159,18 +162,51 @@ impl Drop for UinputDevice {
     }
 }
 
-pub struct Device(pub Option<UinputDevice>);
+/// Time to wait for the compositor to discover a device before emitting events.
+pub const CREATE_DELAY: Duration = Duration::from_millis(150);
+
+/// A wrapper around an optional uinput device which emits eventa on a dedicated
+/// thread after `CREATE_DELAY` if the device is not `None`.
+pub struct Device {
+    tx: Option<Sender<Cmd>>,
+}
+
+enum Cmd {
+    Emit(u16, u16, i32),
+    Sync,
+}
 
 impl Device {
+    pub fn spawn(dev: Option<UinputDevice>) -> Self {
+        let Some(dev) = dev else {
+            return Self { tx: None };
+        };
+        let (tx, rx) = mpsc::channel::<Cmd>();
+        thread::spawn(move || {
+            thread::sleep(CREATE_DELAY);
+            for cmd in rx {
+                let r = match cmd {
+                    Cmd::Emit(ty, code, value) => dev.emit(ty, code, value),
+                    Cmd::Sync => dev.sync(),
+                };
+                if let Err(e) = r {
+                    eprintln!("wl-uinput-proxy: failed to emit uinput event: {e}");
+                }
+            }
+            // channel closed, queue drained, dev will be destroyed
+        });
+        Self { tx: Some(tx) }
+    }
+
     pub fn emit(&self, ty: u16, code: u16, value: i32) {
-        if let Some(dev) = &self.0 && let Err(e) = dev.emit(ty, code, value) {
-            eprintln!("wl-uinput-proxy: failed to emit event ({ty:#x}, {code:#x}, {value}): {e}");
+        if let Some(tx) = &self.tx {
+            let _ = tx.send(Cmd::Emit(ty, code, value));
         }
     }
 
     pub fn sync(&self) {
-        if let Some(dev) = &self.0 && let Err(e) = dev.sync() {
-            eprintln!("wl-uinput-proxy: failed to sync uinput device: {e}");
+        if let Some(tx) = &self.tx {
+            let _ = tx.send(Cmd::Sync);
         }
     }
 }

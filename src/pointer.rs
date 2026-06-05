@@ -4,13 +4,8 @@
 //! - scrolling (`axis`, `axis_discrete`) -> `EV_REL` low/high-res vertical/horizontal wheels
 //! - buttons (`button`) -> `EV_KEY` `BTN_*`
 
-use std::{
-    thread,
-    time::Duration,
-    sync::atomic::{AtomicU64, Ordering},
-};
-
 use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use wl_proxy::{
     fixed::Fixed,
@@ -31,9 +26,9 @@ use wl_proxy::{
 };
 
 use crate::uinput::{
-    UinputBuilder, UinputDevice,
-    ABS_MAX_VAL, ABS_X, ABS_Y, BTN_LEFT, BTN_TASK, Device, EV_ABS, EV_KEY, EV_REL, REL_HWHEEL,
-    REL_HWHEEL_HI_RES, REL_WHEEL, REL_WHEEL_HI_RES,
+    Device, UinputBuilder, UinputDevice,
+    ABS_MAX_VAL, ABS_X, ABS_Y, BTN_LEFT, BTN_TASK, EV_ABS, EV_KEY, EV_REL,
+    REL_HWHEEL, REL_HWHEEL_HI_RES, REL_WHEEL, REL_WHEEL_HI_RES,
 };
 
 /// Number of wayland axis units per wheel notch.
@@ -68,7 +63,7 @@ impl ZwlrVirtualPointerManagerV1Handler for PointerManager {
                 None
             }
         };
-        id.set_handler(Pointer::new(Device(dev)));
+        id.set_handler(Pointer::new(Device::spawn(dev)));
     }
 
     fn handle_create_virtual_pointer_with_output(
@@ -115,11 +110,7 @@ fn create_pointer_device(name: &str) -> std::io::Result<UinputDevice> {
     b.enable_ev(EV_ABS)?;
     b.enable_abs(ABS_X, 0, ABS_MAX_VAL)?;
     b.enable_abs(ABS_Y, 0, ABS_MAX_VAL)?;
-    let dev = b.build(name)?;
-    // still racy, but at least give it some time to get discovered by the
-    // compositor before sending events
-    thread::sleep(Duration::from_millis(150));
-    Ok(dev)
+    b.build(name)
 }
 
 impl Pointer {

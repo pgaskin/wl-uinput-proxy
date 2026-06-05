@@ -160,7 +160,7 @@ impl ZwpVirtualKeyboardManagerV1Handler for KeyboardManager {
                 None
             }
         };
-        id.set_handler(Keyboard::new(Device(dev), self.keymap.clone()));
+        id.set_handler(Keyboard::new(Device::spawn(dev), self.keymap.clone()));
     }
 }
 
@@ -187,9 +187,7 @@ fn create_keyboard_device(name: &str) -> std::io::Result<UinputDevice> {
     for code in 1..=255u16 {
         b.enable_key(code)?;
     }
-    let dev = b.build(name)?;
-    std::thread::sleep(std::time::Duration::from_millis(150));
-    Ok(dev)
+    b.build(name)
 }
 
 impl Keyboard {
