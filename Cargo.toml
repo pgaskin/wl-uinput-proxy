@@ -1,0 +1,15 @@
+[package]
+name = "wl-uinput-proxy"
+version = "0.0.1"
+edition = "2024"
+license = "MIT"
+description = "Wayland proxy implementing zwp_virtual_keyboard_manager_v1 and zwlr_virtual_pointer_manager_v1 using uinput"
+keywords = ["wayland","uinput","keyboard","mouse"]
+categories = ["command-line-utilities"]
+repository = "https://github.com/pgaskin/wl-uinput-proxy"
+
+[dependencies]
+nix = { version = "0.30", features = ["fs"] }
+uinput-ioctls = "0.1.0"
+wl-proxy = { version = "0.1.2", features = ["all-protocols"] }
+xkbcommon-rs = { version = "0.1.2", features = ["client", "server"] }
