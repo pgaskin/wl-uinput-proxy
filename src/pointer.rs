@@ -39,6 +39,15 @@ use crate::uinput::{
 /// Number of wayland axis units per wheel notch.
 const WHEEL_NOTCH: f64 = 15.0; // same as wlroots/libinput
 
+// Assumed extent for relative `motion` events before `motion_absolute` gives
+// the real one. Without this, relative motion would be scaled 1:1 against the
+// full raw device range and barely move the cursor. This doesn't have to be
+// exact, and if the ratio is wrong, the cursor movement will be slightly
+// skewed, but it's better than nothing. VNC usually uses absolute motion
+// anyways.
+const DEFAULT_X_EXTENT: u32 = 1920;
+const DEFAULT_Y_EXTENT: u32 = 1080;
+
 pub struct PointerManager;
 
 static DEVICE_IDX: AtomicU64 = AtomicU64::new(0);
@@ -119,8 +128,8 @@ impl Pointer {
             dev,
             abs_x: ABS_MAX_VAL / 2,
             abs_y: ABS_MAX_VAL / 2,
-            x_extent: 0,
-            y_extent: 0,
+            x_extent: DEFAULT_X_EXTENT,
+            y_extent: DEFAULT_Y_EXTENT,
             v_cont: 0.0,
             h_cont: 0.0,
             v_disc: 0,
