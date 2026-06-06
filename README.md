@@ -16,6 +16,6 @@ There are a few limitations:
 
 To use this with wayvnc, just prefix wayvnc with `wl-uinput-proxy`.
 
-To use this with RealVNC 7.17.0's hidden Wayland support, ensure you have a working Xwayland setup (it's needed for the UI), then run it in user mode with a command like `/usr/bin/bwrap --bind / / --dev-bind /dev/uinput /dev/uinput --bind /usr/bin/vncagent-wlr /usr/bin/vncagent-x11 /usr/bin/wl-uinput-proxy /usr/bin/vncserver-x11`. The bind from `vncagent-x11` to `vncagent-wlr` is required since it doesn't currently use it automatically. Note that clipboard currently only works unidirectionally from server to client since it's handled by `vncserverui` rather than `vncagent-wlr` and runs in Xwayland. Also note that horizontal scroll is not yet implemented in `vncagent-wlr`, and that the input polling rate is lower than ideal.
+To use this with RealVNC, see the instructions in [vncagent-wlr-fixes](https://github.com/pgaskin/vncagent-wlr-fixes).
 
 To use this with other applications, prefix them with `wl-uinput-proxy`. Note that only protocols supported by [wl-proxy](https://github.com/mahkoh/wl-proxy/blob/master/wl-proxy/Cargo.toml) will be proxied.
