@@ -951,7 +951,7 @@ dependencies = [
 
 [[package]]
 name = "wl-uinput-proxy"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "nix 0.30.1",
  "uinput-ioctls",
