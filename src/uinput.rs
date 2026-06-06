@@ -1,11 +1,16 @@
 //! Simple uinput wrapper.
 
 use std::{
+    collections::HashMap,
     io, mem,
     os::fd::{AsRawFd, OwnedFd},
-    sync::mpsc::{self, Sender},
+    sync::{
+        OnceLock,
+        atomic::{AtomicU64, Ordering},
+        mpsc::{self, Receiver, Sender},
+    },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use nix::{
@@ -162,51 +167,106 @@ impl Drop for UinputDevice {
     }
 }
 
+/// Unique index for tracking devices we create.
+static DEVICE_IDX: AtomicU64 = AtomicU64::new(0);
+
 /// Time to wait for the compositor to discover a device before emitting events.
 pub const CREATE_DELAY: Duration = Duration::from_millis(150);
 
-/// A wrapper around an optional uinput device which emits eventa on a dedicated
-/// thread after `CREATE_DELAY` if the device is not `None`.
+/// A handle to an optional uinput device. The order of events is preserved
+/// across all devices, and events are only emitted after waiting a bit for them
+/// to be discovered. If None, all events are ignored immediately.
 pub struct Device {
-    tx: Option<Sender<Cmd>>,
+    id: Option<u64>,
 }
 
 enum Cmd {
-    Emit(u16, u16, i32),
-    Sync,
+    Add(u64, UinputDevice, Instant),
+    Emit(u64, u16, u16, i32),
+    Sync(u64),
+    Remove(u64),
 }
 
 impl Device {
     pub fn spawn(dev: Option<UinputDevice>) -> Self {
         let Some(dev) = dev else {
-            return Self { tx: None };
+            return Self { id: None };
         };
-        let (tx, rx) = mpsc::channel::<Cmd>();
-        thread::spawn(move || {
-            thread::sleep(CREATE_DELAY);
-            for cmd in rx {
-                let r = match cmd {
-                    Cmd::Emit(ty, code, value) => dev.emit(ty, code, value),
-                    Cmd::Sync => dev.sync(),
-                };
-                if let Err(e) = r {
-                    eprintln!("wl-uinput-proxy: failed to emit uinput event: {e}");
-                }
-            }
-            // channel closed, queue drained, dev will be destroyed
-        });
-        Self { tx: Some(tx) }
+        let id = DEVICE_IDX.fetch_add(1, Ordering::Relaxed);
+        let _ = emitter().send(Cmd::Add(id, dev, Instant::now() + CREATE_DELAY));
+        Self { id: Some(id) }
     }
 
     pub fn emit(&self, ty: u16, code: u16, value: i32) {
-        if let Some(tx) = &self.tx {
-            let _ = tx.send(Cmd::Emit(ty, code, value));
+        if let Some(id) = self.id {
+            let _ = emitter().send(Cmd::Emit(id, ty, code, value));
         }
     }
 
     pub fn sync(&self) {
-        if let Some(tx) = &self.tx {
-            let _ = tx.send(Cmd::Sync);
+        if let Some(id) = self.id {
+            let _ = emitter().send(Cmd::Sync(id));
         }
+    }
+}
+
+impl Drop for Device {
+    fn drop(&mut self) {
+        if let Some(id) = self.id {
+            // queued after any release events emitted during teardown, so they
+            // are applied before the device is destroyed.
+            let _ = emitter().send(Cmd::Remove(id));
+        }
+    }
+}
+
+fn emitter() -> &'static Sender<Cmd> {
+    static TX: OnceLock<Sender<Cmd>> = OnceLock::new();
+    TX.get_or_init(|| {
+        let (tx, rx) = mpsc::channel::<Cmd>();
+        thread::Builder::new()
+            .name("uinput-emitter".into())
+            .spawn(move || emitter_loop(rx))
+            .expect("spawn uinput emitter thread");
+        tx
+    })
+}
+
+fn emitter_loop(rx: Receiver<Cmd>) {
+    let mut devices: HashMap<u64, (UinputDevice, Instant)> = HashMap::new();
+    for cmd in rx {
+        match cmd {
+            Cmd::Add(id, dev, start) => {
+                devices.insert(id, (dev, start));
+            }
+            Cmd::Remove(id) => {
+                devices.remove(&id); // drops the device, destroying it
+            }
+            Cmd::Emit(id, ty, code, value) => {
+                if let Some((dev, ready_at)) = devices.get(&id) {
+                    wait_until(*ready_at);
+                    if let Err(e) = dev.emit(ty, code, value) {
+                        eprintln!("wl-uinput-proxy: failed to emit uinput event: {e}");
+                    }
+                }
+            }
+            Cmd::Sync(id) => {
+                if let Some((dev, ready_at)) = devices.get(&id) {
+                    wait_until(*ready_at);
+                    if let Err(e) = dev.sync() {
+                        eprintln!("wl-uinput-proxy: failed to sync uinput device: {e}");
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn wait_until(t: Instant) {
+    let now = Instant::now();
+    if t > now {
+        // only ever sleeps right after a device is created (startup); in steady
+        // state every device is long past its deadline and this is a no-op.
+        thread::sleep(t - now);
     }
 }
