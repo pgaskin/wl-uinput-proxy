@@ -829,16 +829,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "uinput-ioctls"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "180824e615dce76ac5a23c6146c649edaa1ce1f0e1acf346760b161c2b798a5f"
-dependencies = [
- "libc",
- "nix 0.30.1",
-]
-
-[[package]]
 name = "unicase"
 version = "2.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -954,7 +944,6 @@ name = "wl-uinput-proxy"
 version = "0.0.2"
 dependencies = [
  "nix 0.30.1",
- "uinput-ioctls",
  "wl-proxy",
  "xkbcommon-rs",
 ]

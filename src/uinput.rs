@@ -18,11 +18,18 @@ use nix::{
     libc::{c_char, input_absinfo, input_event, input_id, timeval, uinput_abs_setup, uinput_setup},
     sys::stat::Mode,
     unistd::write,
+    ioctl_none, ioctl_write_int, ioctl_write_ptr,
 };
-use uinput_ioctls::{
-    ui_abs_setup, ui_dev_create, ui_dev_destroy, ui_dev_setup, ui_set_absbit, ui_set_evbit,
-    ui_set_keybit, ui_set_relbit,
-};
+
+// linux/uinput.h
+ioctl_none!(ui_dev_create, b'U', 1);
+ioctl_none!(ui_dev_destroy, b'U', 2);
+ioctl_write_ptr!(ui_dev_setup, b'U', 3, nix::libc::uinput_setup);
+ioctl_write_ptr!(ui_abs_setup, b'U', 4, nix::libc::uinput_abs_setup);
+ioctl_write_int!(ui_set_evbit, b'U', 100);
+ioctl_write_int!(ui_set_keybit, b'U', 101);
+ioctl_write_int!(ui_set_relbit, b'U', 102);
+ioctl_write_int!(ui_set_absbit, b'U', 103);
 
 // linux/input-event-codes.h
 pub const EV_SYN: u16 = 0x00;
