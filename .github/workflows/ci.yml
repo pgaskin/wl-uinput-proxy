@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - armv7-unknown-linux-gnueabihf
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: mkdir -p .cargo && printf '%s\n' >> .cargo/config.toml
+          'target.x86_64-unknown-linux-gnu.linker = "x86_64-linux-gnu-gcc"'
+          'target.aarch64-unknown-linux-gnu.linker = "aarch64-linux-gnu-gcc"'
+          'target.armv7-unknown-linux-gnueabihf.linker = "arm-linux-gnueabihf-gcc"'
+          'target.aarch64-unknown-linux-gnu.runner = ["qemu-aarch64-static", "-L", "/usr/aarch64-linux-gnu"]' 
+          'target.armv7-unknown-linux-gnueabihf.runner = ["qemu-arm-static", "-L", "/usr/arm-linux-gnueabihf"]'
+      - run: sudo apt-get install -y
+          ${{case(startsWith(matrix.target, 'x86_64-'),'','qemu-user-static')}}
+          ${{case(startsWith(matrix.target, 'x86_64-'),'gcc-x86-64-linux-gnu binutils-x86-64-linux-gnu','')}}
+          ${{case(startsWith(matrix.target, 'aarch64-'),'gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu','')}}
+          ${{case(startsWith(matrix.target, 'armv7-'),'gcc-arm-linux-gnueabihf binutils-arm-linux-gnueabihf','')}}
+      - run: rustup default 1.96.0-x86_64-unknown-linux-gnu
+      - run: rustup component add clippy
+      - run: rustup target add ${{matrix.target}}
+      - run: cargo check --verbose --target=${{matrix.target}}
+      - run: cargo build --verbose --target=${{matrix.target}}
+      - run: cargo test --verbose --target=${{matrix.target}}
+      - run: cargo clippy --verbose --target=${{matrix.target}}
+      - run: file target/${{matrix.target}}/debug/wl-uinput-proxy
+      - run:
+          ${{case(
+            startsWith(matrix.target, 'x86_64-'),'x86_64-linux-gnu-',
+            startsWith(matrix.target, 'aarch64-'),'aarch64-linux-gnu-',
+            startsWith(matrix.target, 'armv7-'),'arm-linux-gnueabihf-',
+          '')}}nm -D target/${{matrix.target}}/debug/wl-uinput-proxy
+      - uses: actions/upload-artifact@v7
+        with:
+          name: wl-uinput-proxy-${{matrix.target}}
+          path: target/${{matrix.target}}/debug/wl-uinput-proxy
