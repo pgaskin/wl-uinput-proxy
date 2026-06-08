@@ -9,6 +9,6 @@ categories = ["command-line-utilities"]
 repository = "https://github.com/pgaskin/wl-uinput-proxy"
 
 [dependencies]
-nix = { version = "0.30", features = ["fs", "ioctl"] }
+nix = { version = "0.30", features = ["fs", "ioctl", "signal"] }
 wl-proxy = { version = "0.1.2", features = ["all-protocols"] }
 xkbcommon-rs = { version = "0.1.2", features = ["client", "server"] }

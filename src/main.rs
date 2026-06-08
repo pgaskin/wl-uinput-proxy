@@ -5,7 +5,8 @@ mod pointer;
 mod seat;
 mod uinput;
 
-use std::{cell::RefCell, process::Command, rc::Rc, sync::OnceLock};
+use std::{cell::RefCell, os::unix::process::ExitStatusExt, process::Command, rc::Rc, sync::{OnceLock, mpsc}, thread};
+use nix::sys::signal::{raise, Signal};
 
 use wl_proxy::{
     baseline::Baseline,
@@ -67,17 +68,56 @@ fn main() {
         }
     };
 
-    if let Err(e) = Command::new(&program)
+    let mut child = Command::new(&program)
         .args(&program_args)
         .with_wayland_display(proxy.display())
-        .spawn_and_forward_exit_code()
-    {
-        wlog!("failed to spawn {:?}: {e}", program);
-        std::process::exit(1);
-    }
+        .spawn()
+        .unwrap_or_else(|e| {
+            wlog!("failed to spawn {:?}: {e}", program);
+            std::process::exit(1);
+        });
+
+        let (shutdown_tx, shutdown_rx) = mpsc::channel();
+        thread::spawn(move || {
+            loop {
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        if let Some(code) = status.code() {
+                            if code != 0 {
+                                wlog!("child exited with status {code}");
+                            } else {
+                                uinput::drain();
+                            }
+                            std::process::exit(code);
+                        }
+                        if let Some(signal) = status.signal() {
+                            wlog!("child killed by signal {signal}");
+                            if let Ok(signal) = Signal::try_from(signal) {
+                                let _ = raise(signal);
+                            }
+                            std::process::exit(1);
+                        }
+                        wlog!("child exited for unknown reason");
+                        std::process::exit(1);
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        wlog!("failed to wait for child: {e}");
+                        std::process::exit(1);
+                    }
+                }
+                if shutdown_rx.try_recv().is_ok() {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    std::process::exit(1);
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10)); // this is ugly... maybe use PDEATHSIG instead?
+            }
+        });
 
     let err = proxy.run(Display::default);
-    wlog!("proxy terminated: {err}");
+    wlog!("proxy terminated unexpectedly, killing child: {err}");
+    let _ = shutdown_tx.send(());
     std::process::exit(1);
 }
 

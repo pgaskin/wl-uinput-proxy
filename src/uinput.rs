@@ -194,6 +194,7 @@ enum Cmd {
     Emit(u64, u16, u16, i32),
     Sync(u64),
     Remove(u64),
+    Drain(mpsc::SyncSender<()>),
 }
 
 impl Device {
@@ -267,8 +268,17 @@ fn emitter_loop(rx: Receiver<Cmd>) {
                     }
                 }
             }
+            Cmd::Drain(done) => {
+                let _ = done.send(());
+            }
         }
     }
+}
+
+pub fn drain() {
+    let (tx, rx) = mpsc::sync_channel(0);
+    let _ = emitter().send(Cmd::Drain(tx));
+    let _ = rx.recv();
 }
 
 fn wait_until(t: Instant) {
