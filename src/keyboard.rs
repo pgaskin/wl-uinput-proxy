@@ -6,10 +6,7 @@
 //! and modifiers are simulated as modifer keypresses.
 
 use std::{
-    collections::HashMap,
-    os::fd::{AsFd, OwnedFd},
-    rc::Rc,
-    sync::atomic::{AtomicU64, Ordering},
+    collections::HashMap, os::fd::{AsFd, OwnedFd}, panic, rc::Rc, sync::atomic::{AtomicU64, Ordering}
 };
 
 use wl_proxy::{
@@ -142,7 +139,20 @@ impl ReverseMap {
     }
 
     pub fn lookup(&self, sym: u32) -> Option<(u16, &[u16])> {
-        self.syms.get(&sym).map(|(kc, mods)| (*kc, mods.as_slice()))
+        match panic::catch_unwind(|| self.syms.get(&sym).map(|(kc, mods)| (*kc, mods.as_slice()))) {
+            Ok(Some(v)) => Some(v),
+            Ok(None) => {
+                eprintln!("wl-uinput-proxy: failed to look up keysym {sym:#010x}");
+                None
+            }
+            Err(e) => {
+                let msg = e.downcast_ref::<&str>().copied()
+                    .or_else(|| e.downcast_ref::<String>().map(String::as_str))
+                    .unwrap_or("unknown panic");
+                eprintln!("wl-uinput-proxy: panic looking up keysym {sym:#010x}: {msg}");
+                None
+            }
+        }
     }
 }
 
