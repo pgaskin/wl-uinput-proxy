@@ -1,6 +1,6 @@
 [package]
 name = "wl-uinput-proxy"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2024"
 license = "MIT"
 description = "Wayland proxy implementing zwp_virtual_keyboard_manager_v1 and zwlr_virtual_pointer_manager_v1 using uinput"
