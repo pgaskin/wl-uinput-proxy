@@ -9,6 +9,8 @@ use std::{
     collections::HashMap, os::fd::{AsFd, OwnedFd}, panic, rc::Rc, sync::atomic::{AtomicU64, Ordering}
 };
 
+use crate::wdebug;
+
 use wl_proxy::{
     object::{Object, ObjectCoreApi},
     protocols::{
@@ -144,12 +146,19 @@ impl ReverseMap {
         // reset the keymap state
         state.update_mask(0, 0, 0, 0, 0, 0);
 
+        for (sym, (evdev, mods)) in &syms {
+            wdebug!("reverse map: sym={sym:#010x} -> evdev={evdev} mods={mods:?}");
+        }
+
         Self { syms }
     }
 
     pub fn lookup(&self, sym: u32) -> Option<(u16, &[u16])> {
         match panic::catch_unwind(|| self.syms.get(&sym).map(|(kc, mods)| (*kc, mods.as_slice()))) {
-            Ok(Some(v)) => Some(v),
+            Ok(Some(v)) => {
+                wdebug!("lookup {sym:#010x} -> evdev={} mods={:?}", v.0, v.1);
+                Some(v)
+            }
             Ok(None) => {
                 eprintln!("wl-uinput-proxy: failed to look up keysym {sym:#010x}");
                 None
@@ -263,6 +272,7 @@ impl Keyboard {
             return;
         };
         let desired = passthrough_mod_keys(client);
+        wdebug!("sync_passthrough desired={desired:?} held={:?}", self.passthrough_held);
         let mut changed = false;
         for &m in &desired {
             if !self.passthrough_held.contains(&m) {
@@ -312,10 +322,12 @@ impl Keyboard {
                 .unwrap()
                 .key_get_one_sym(xkb_kc)
                 .map_or(0, |s| s.raw());
+            wdebug!("translate_key press: key={key} xkb_kc={xkb_kc} sym={sym:#010x}");
             self.client.as_mut().unwrap().update_key(xkb_kc, KeyDirection::Down);
 
             self.sync_passthrough();
             if is_modifier_keysym(sym) {
+                wdebug!("translate_key: sym is modifier, skipping emit");
                 return;
             }
 
@@ -338,10 +350,12 @@ impl Keyboard {
                     _ => {} // already in the right state
                 }
             }
+            wdebug!("translate_key emit: EV_KEY out_kc={out_kc} 1  press_mods={pressed_mods:?} release_mods={released_mods:?}");
             self.dev.emit(EV_KEY, out_kc, 1);
             self.dev.sync();
             self.pressed.insert(key, Pressed { out_kc, pressed_mods, released_mods });
         } else {
+            wdebug!("translate_key release: key={key} xkb_kc={xkb_kc}");
             self.client.as_mut().unwrap().update_key(xkb_kc, KeyDirection::Up);
             if let Some(p) = self.pressed.remove(&key) {
                 self.dev.emit(EV_KEY, p.out_kc, 0);
@@ -397,6 +411,7 @@ impl ZwpVirtualKeyboardV1Handler for Keyboard {
         self.ensure_reverse();
         if self.translating() {
             self.release_raw_mods(); // if any were pressed while we got the keymap
+            wdebug!("handle_modifiers (translating): depressed={mods_depressed:#010x} latched={mods_latched:#010x} locked={mods_locked:#010x} group={group}");
             self.client.as_mut().unwrap().update_mask(
                 mods_depressed,
                 mods_latched,

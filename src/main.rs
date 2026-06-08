@@ -5,7 +5,21 @@ mod pointer;
 mod seat;
 mod uinput;
 
-use std::{cell::RefCell, process::Command, rc::Rc};
+use std::{cell::RefCell, process::Command, rc::Rc, sync::OnceLock};
+
+fn is_debug() -> bool {
+    static DEBUG: OnceLock<bool> = OnceLock::new();
+    *DEBUG.get_or_init(|| std::env::var("WUIP_DEBUG").is_ok())
+}
+
+#[macro_export]
+macro_rules! wdebug {
+    ($($arg:tt)*) => {
+        if $crate::is_debug() {
+            eprintln!("wl-uinput-proxy: {}", format_args!($($arg)*));
+        }
+    };
+}
 
 use wl_proxy::{
     baseline::Baseline,
