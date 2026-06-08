@@ -210,9 +210,15 @@ pub struct Keyboard {
 fn create_keyboard_device(name: &str) -> std::io::Result<UinputDevice> {
     let b = UinputBuilder::new()?;
     b.enable_ev(EV_KEY)?;
-    // every key and modifier, but below BTN_* so it gets classified as a
-    // keyboard by the kernel
+    // standard keyboard keys
     for code in 1..=255u16 {
+        b.enable_key(code)?;
+    }
+    // extended keyboard keys (but skip BTN_{MISC,MOUSE,JOYSTICK,GAMEPAD} so we
+    // still get classified as a keyboard as a kernel) since XKB keymaps can
+    // assign keysyms to high keycodes (e.g. a dedicated $ key at keycode 434)
+    // so we need to cover the full range up to KEY_MAX (767).
+    for code in 352..=767u16 {
         b.enable_key(code)?;
     }
     b.build(name)
