@@ -9,7 +9,7 @@ use std::{
     collections::HashMap, os::fd::{AsFd, OwnedFd}, panic, rc::Rc, sync::atomic::{AtomicU64, Ordering}
 };
 
-use crate::wdebug;
+use crate::{wdebug, wlog};
 
 use wl_proxy::{
     object::{Object, ObjectCoreApi},
@@ -160,14 +160,14 @@ impl ReverseMap {
                 Some(v)
             }
             Ok(None) => {
-                eprintln!("wl-uinput-proxy: failed to look up keysym {sym:#010x}");
+                wlog!("failed to look up keysym {sym:#010x}");
                 None
             }
             Err(e) => {
                 let msg = e.downcast_ref::<&str>().copied()
                     .or_else(|| e.downcast_ref::<String>().map(String::as_str))
                     .unwrap_or("unknown panic");
-                eprintln!("wl-uinput-proxy: panic looking up keysym {sym:#010x}: {msg}");
+                wlog!("panic looking up keysym {sym:#010x}: {msg}");
                 None
             }
         }
@@ -198,7 +198,7 @@ impl ZwpVirtualKeyboardManagerV1Handler for KeyboardManager {
         let dev = match create_keyboard_device(&name) {
             Ok(dev) => Some(dev),
             Err(e) => {
-                eprintln!("wl-uinput-proxy: failed to create uinput keyboard device: {e}");
+                wlog!("failed to create uinput keyboard device: {e}");
                 None
             }
         };

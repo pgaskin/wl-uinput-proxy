@@ -7,6 +7,8 @@
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use crate::wlog;
+
 use wl_proxy::{
     fixed::Fixed,
     object::{Object, ObjectCoreApi},
@@ -59,7 +61,7 @@ impl ZwlrVirtualPointerManagerV1Handler for PointerManager {
         let dev = match create_pointer_device(&name) {
             Ok(dev) => Some(dev),
             Err(e) => {
-                eprintln!("wl-uinput-proxy: failed to create uinput pointer device: {e}");
+                wlog!("failed to create uinput pointer device: {e}");
                 None
             }
         };
@@ -73,7 +75,7 @@ impl ZwlrVirtualPointerManagerV1Handler for PointerManager {
         _output: Option<&Rc<WlOutput>>,
         id: &Rc<ZwlrVirtualPointerV1>,
     ) {
-        eprintln!("wl-uinput-proxy: ignoring output for virtual pointer");
+        wlog!("ignoring output for virtual pointer");
         self.handle_create_virtual_pointer(slf, seat, id);
     }
 
@@ -219,7 +221,7 @@ impl ZwlrVirtualPointerV1Handler for Pointer {
         state: WlPointerButtonState,
     ) {
         if !(u32::from(BTN_LEFT)..=u32::from(BTN_TASK)).contains(&button) {
-            eprintln!("wl-uinput-proxy: ignoring unsupported pointer button {button:#x}");
+            wlog!("ignoring unsupported pointer button {button:#x}");
             return;
         }
         let value = (state == WlPointerButtonState::PRESSED) as i32;

@@ -1,5 +1,7 @@
 //! Simple uinput wrapper.
 
+use crate::wlog;
+
 use std::{
     collections::HashMap,
     io, mem,
@@ -253,7 +255,7 @@ fn emitter_loop(rx: Receiver<Cmd>) {
                 if let Some((dev, ready_at)) = devices.get(&id) {
                     wait_until(*ready_at);
                     if let Err(e) = dev.emit(ty, code, value) {
-                        eprintln!("wl-uinput-proxy: failed to emit uinput event: {e}");
+                        wlog!("failed to emit uinput event: {e}");
                     }
                 }
             }
@@ -261,7 +263,7 @@ fn emitter_loop(rx: Receiver<Cmd>) {
                 if let Some((dev, ready_at)) = devices.get(&id) {
                     wait_until(*ready_at);
                     if let Err(e) = dev.sync() {
-                        eprintln!("wl-uinput-proxy: failed to sync uinput device: {e}");
+                        wlog!("failed to sync uinput device: {e}");
                     }
                 }
             }

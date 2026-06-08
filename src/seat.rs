@@ -1,6 +1,8 @@
 //! Gets the current keymap from the compositor by getting a private
 //! `wl_seat`/`wl_keyboard` to receive the keymap for.
 
+use crate::wlog;
+
 use std::{
     cell::RefCell,
     fs::File,
@@ -103,20 +105,20 @@ impl WlKeyboardHandler for ServerKeyboard {
         size: u32,
     ) {
         if format != WlKeyboardKeymapFormat::XKB_V1 {
-            eprintln!("wl-uinput-proxy: compositor keymap has unsupported format {format:?}");
+            wlog!("compositor keymap has unsupported format {format:?}");
             return;
         }
         match compile_keymap(fd.as_fd(), size as usize) {
             Some(km) => {
                 let layout = km.layout_get_name(0).unwrap_or("?");
-                eprintln!(
-                    "wl-uinput-proxy: got compositor keymap (layout '{layout}', keycodes {}..={})",
+                wlog!(
+                    "got compositor keymap (layout '{layout}', keycodes {}..={})",
                     u32::from(km.min_keycode()),
                     u32::from(km.max_keycode()),
                 );
                 *self.keymap.borrow_mut() = Some(Rc::new(km));
             }
-            None => eprintln!("wl-uinput-proxy: failed to compile compositor keymap"),
+            None => wlog!("failed to compile compositor keymap"),
         }
     }
 }

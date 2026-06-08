@@ -7,20 +7,6 @@ mod uinput;
 
 use std::{cell::RefCell, process::Command, rc::Rc, sync::OnceLock};
 
-fn is_debug() -> bool {
-    static DEBUG: OnceLock<bool> = OnceLock::new();
-    *DEBUG.get_or_init(|| std::env::var("WUIP_DEBUG").is_ok())
-}
-
-#[macro_export]
-macro_rules! wdebug {
-    ($($arg:tt)*) => {
-        if $crate::is_debug() {
-            eprintln!("wl-uinput-proxy: {}", format_args!($($arg)*));
-        }
-    };
-}
-
 use wl_proxy::{
     baseline::Baseline,
     global_mapper::GlobalMapper,
@@ -44,6 +30,27 @@ use crate::{
     seat::{ServerRegistry, SharedKeymap},
 };
 
+#[macro_export]
+macro_rules! wlog {
+    ($($arg:tt)*) => {{
+        eprintln!("wl-uinput-proxy: {}", format_args!($($arg)*));
+    }};
+}
+
+#[macro_export]
+macro_rules! wdebug {
+    ($($arg:tt)*) => {{
+        if $crate::is_debug() {
+            eprintln!("wl-uinput-proxy: {}", format_args!($($arg)*));
+        }
+    }};
+}
+
+fn is_debug() -> bool {
+    static DEBUG: OnceLock<bool> = OnceLock::new();
+    *DEBUG.get_or_init(|| std::env::var("WUIP_DEBUG").is_ok())
+}
+
 fn main() {
     let mut args = std::env::args_os().skip(1);
     let Some(program) = args.next() else {
@@ -55,7 +62,7 @@ fn main() {
     let proxy = match SimpleProxy::new(Baseline::ALL_OF_THEM) {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("wl-uinput-proxy: failed to create proxy: {e}");
+            wlog!("failed to create proxy: {e}");
             std::process::exit(1);
         }
     };
@@ -65,12 +72,12 @@ fn main() {
         .with_wayland_display(proxy.display())
         .spawn_and_forward_exit_code()
     {
-        eprintln!("wl-uinput-proxy: failed to spawn {:?}: {e}", program);
+        wlog!("failed to spawn {:?}: {e}", program);
         std::process::exit(1);
     }
 
     let err = proxy.run(Display::default);
-    eprintln!("wl-uinput-proxy: proxy terminated: {err}");
+    wlog!("proxy terminated: {err}");
     std::process::exit(1);
 }
 
