@@ -49,7 +49,7 @@ I took an approach which I think balances the tradeoffs well.
 
 - I assume the input device will be bound to the first seat (most compositors only implement one anyways), and detecting the active keymap from it. This means the keymap will be incorrect if there are a window is focused by a keyboard from a secondary seat with a different keymap.
 
-- I build a reverse mapping of keycodes to keysyms for the active keymap, taking into account a few predetermined combinations of level-shifting keys (for efficiency), then brute-forcing the remaining ones. If the keymap is unknown for any reason, I fall back to the standard 8 "real" modifiers and sending the keysyms as-is. This will result in incorrect characters being type if the keymap does not match, like when you type on a US keyboard set to dvorak without realising it.
+- I build a reverse mapping of keycodes to keysyms for the active keymap, taking into account a few predetermined combinations of level-shifting keys (for efficiency), then brute-forcing the remaining ones (but preferring standard keycodes over extended ones since some extended ones aren't always handled correctly). If the keymap is unknown for any reason, I fall back to the standard 8 "real" modifiers and sending the keysyms as-is. This will result in incorrect characters being type if the keymap does not match, like when you type on a US keyboard set to dvorak without realising it.
 
 - I map the raw keycode from the virtual keyboard client to the keysym, then look up that keysym in the reverse mapping to produce the raw key events which would reproduce that keysym when interpreted under the active keymap.
 

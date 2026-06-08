@@ -119,17 +119,26 @@ impl ReverseMap {
             }
         }
 
-        // brute-force the keysyms
+        // brute-force the keysyms, but scan standard evdev range (1..=255, XKB
+        // 9..=263) before extended keys so that e.g. Shift+4 is preferred over
+        // a bare dedicated $ key at a high evdev code that the compositor may
+        // not handle correctly.
         let min = u32::from(keymap.min_keycode());
         let max = u32::from(keymap.max_keycode());
-        for (mask, modkeys) in &combos {
-            state.update_mask(*mask, 0, 0, 0, 0, 0);
-            for kc in min..=max {
-                let Some(sym) = state.key_get_one_sym(kc) else {
-                    continue;
-                };
-                let evdev = kc.saturating_sub(8) as u16;
-                syms.entry(sym.raw()).or_insert_with(|| (evdev, modkeys.clone()));
+        let passes = [(min, max.min(263)), (min.max(264), max)];
+        for (pass_min, pass_max) in passes {
+            if pass_min > pass_max {
+                continue;
+            }
+            for (mask, modkeys) in &combos {
+                state.update_mask(*mask, 0, 0, 0, 0, 0);
+                for kc in pass_min..=pass_max {
+                    let Some(sym) = state.key_get_one_sym(kc) else {
+                        continue;
+                    };
+                    let evdev = kc.saturating_sub(8) as u16;
+                    syms.entry(sym.raw()).or_insert_with(|| (evdev, modkeys.clone()));
+                }
             }
         }
         // reset the keymap state
