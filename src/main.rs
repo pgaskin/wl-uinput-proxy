@@ -5,6 +5,10 @@ mod pointer;
 mod seat;
 mod uinput;
 
+use nix::sys::{
+    prctl,
+    signal::{Signal, raise},
+};
 use std::{
     cell::RefCell,
     os::unix::process::{CommandExt, ExitStatusExt},
@@ -13,7 +17,6 @@ use std::{
     sync::OnceLock,
     thread,
 };
-use nix::{sys::{prctl, signal::{Signal, raise}}};
 
 use wl_proxy::{
     baseline::Baseline,
@@ -78,7 +81,7 @@ fn main() {
     let mut cmd = Command::new(&program);
     cmd.args(&program_args);
     cmd.with_wayland_display(proxy.display());
-        
+
     unsafe {
         cmd.pre_exec(|| {
             // kill the child if we die
@@ -87,38 +90,34 @@ fn main() {
         });
     }
 
-    let mut child = cmd
-        .spawn()
-        .unwrap_or_else(|e| {
-            wlog!("failed to spawn {:?}: {e}", program);
-            std::process::exit(1);
-        });
+    let mut child = cmd.spawn().unwrap_or_else(|e| {
+        wlog!("failed to spawn {:?}: {e}", program);
+        std::process::exit(1);
+    });
 
-    thread::spawn(move || {
-        match child.wait() {
-            Ok(status) => {
-                if let Some(code) = status.code() {
-                    if code != 0 {
-                        wlog!("child exited with status {code}");
-                    } else {
-                        uinput::drain();
-                    }
-                    std::process::exit(code);
+    thread::spawn(move || match child.wait() {
+        Ok(status) => {
+            if let Some(code) = status.code() {
+                if code != 0 {
+                    wlog!("child exited with status {code}");
+                } else {
+                    uinput::drain();
                 }
-                if let Some(signal) = status.signal() {
-                    wlog!("child killed by signal {signal}");
-                    if let Ok(signal) = Signal::try_from(signal) {
-                        let _ = raise(signal);
-                    }
-                    std::process::exit(1);
+                std::process::exit(code);
+            }
+            if let Some(signal) = status.signal() {
+                wlog!("child killed by signal {signal}");
+                if let Ok(signal) = Signal::try_from(signal) {
+                    let _ = raise(signal);
                 }
-                wlog!("child exited for unknown reason");
                 std::process::exit(1);
             }
-            Err(e) => {
-                wlog!("failed to wait for child: {e}");
-                std::process::exit(1);
-            }
+            wlog!("child exited for unknown reason");
+            std::process::exit(1);
+        }
+        Err(e) => {
+            wlog!("failed to wait for child: {e}");
+            std::process::exit(1);
         }
     });
 

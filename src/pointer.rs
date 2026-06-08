@@ -28,9 +28,8 @@ use wl_proxy::{
 };
 
 use crate::uinput::{
-    Device, UinputBuilder, UinputDevice,
-    ABS_MAX_VAL, ABS_X, ABS_Y, BTN_LEFT, BTN_TASK, EV_ABS, EV_KEY, EV_REL,
-    REL_HWHEEL, REL_HWHEEL_HI_RES, REL_WHEEL, REL_WHEEL_HI_RES,
+    ABS_MAX_VAL, ABS_X, ABS_Y, BTN_LEFT, BTN_TASK, Device, EV_ABS, EV_KEY, EV_REL, REL_HWHEEL,
+    REL_HWHEEL_HI_RES, REL_WHEEL, REL_WHEEL_HI_RES, UinputBuilder, UinputDevice,
 };
 
 /// Number of wayland axis units per wheel notch.
@@ -57,7 +56,10 @@ impl ZwlrVirtualPointerManagerV1Handler for PointerManager {
         id: &Rc<ZwlrVirtualPointerV1>,
     ) {
         id.set_forward_to_server(false);
-        let name = format!("wl-uinput-proxy virtual pointer {}", DEVICE_IDX.fetch_add(1, Ordering::Relaxed));
+        let name = format!(
+            "wl-uinput-proxy virtual pointer {}",
+            DEVICE_IDX.fetch_add(1, Ordering::Relaxed)
+        );
         let dev = match create_pointer_device(&name) {
             Ok(dev) => Some(dev),
             Err(e) => {
@@ -87,14 +89,14 @@ impl ZwlrVirtualPointerManagerV1Handler for PointerManager {
 
 pub struct Pointer {
     dev: Device,
-    abs_x: i32, // current device pos
-    abs_y: i32, // current device pos
+    abs_x: i32,    // current device pos
+    abs_y: i32,    // current device pos
     x_extent: u32, // from last motion_absolute
     y_extent: u32, // from last motion_absolute
-    v_cont: f64, // acc
-    h_cont: f64, // acc
-    v_disc: i32, // acc
-    h_disc: i32, // acc
+    v_cont: f64,   // acc
+    h_cont: f64,   // acc
+    v_disc: i32,   // acc
+    h_disc: i32,   // acc
     has_v_disc: bool,
     has_h_disc: bool,
 }
@@ -160,11 +162,11 @@ impl Pointer {
         };
         let mut emitted = false;
         if legacy != 0 {
-            self.dev.emit(EV_REL,legacy_code, sign * legacy);
+            self.dev.emit(EV_REL, legacy_code, sign * legacy);
             emitted = true;
         }
         if hires != 0 {
-            self.dev.emit(EV_REL,hires_code, sign * hires);
+            self.dev.emit(EV_REL, hires_code, sign * hires);
             emitted = true;
         }
         emitted

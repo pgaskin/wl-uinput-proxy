@@ -17,10 +17,10 @@ use std::{
 
 use nix::{
     fcntl::{OFlag, open},
+    ioctl_none, ioctl_write_int, ioctl_write_ptr,
     libc::{c_char, input_absinfo, input_event, input_id, timeval, uinput_abs_setup, uinput_setup},
     sys::stat::Mode,
     unistd::write,
-    ioctl_none, ioctl_write_int, ioctl_write_ptr,
 };
 
 // linux/uinput.h
@@ -154,7 +154,8 @@ impl UinputDevice {
             value,
         };
         let size = mem::size_of::<input_event>();
-        let bytes = unsafe { std::slice::from_raw_parts((&ev as *const input_event).cast::<u8>(), size) };
+        let bytes =
+            unsafe { std::slice::from_raw_parts((&ev as *const input_event).cast::<u8>(), size) };
         let written = write(&self.fd, bytes)?;
         if written != size {
             return Err(io::Error::new(

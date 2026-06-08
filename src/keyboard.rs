@@ -1,12 +1,16 @@
 //! uinput-backed implementation of `zwp_virtual_keyboard_manager_v1`.
-//! 
+//!
 //! If the client keymap is available and can map the key to a keysym which can
 //! be mapped back to evdev codes for the compositor's keymap, if also
 //! available, those evdev codes are used. Otherwise, evdev codes are used as-is
 //! and modifiers are simulated as modifer keypresses.
 
 use std::{
-    collections::HashMap, os::fd::{AsFd, OwnedFd}, panic, rc::Rc, sync::atomic::{AtomicU64, Ordering}
+    collections::HashMap,
+    os::fd::{AsFd, OwnedFd},
+    panic,
+    rc::Rc,
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 use crate::{wdebug, wlog};
@@ -14,13 +18,13 @@ use crate::{wdebug, wlog};
 use wl_proxy::{
     object::{Object, ObjectCoreApi},
     protocols::{
-        wayland::wl_seat::WlSeat,
         virtual_keyboard_unstable_v1::{
             zwp_virtual_keyboard_manager_v1::{
                 ZwpVirtualKeyboardManagerV1, ZwpVirtualKeyboardManagerV1Handler,
             },
             zwp_virtual_keyboard_v1::{ZwpVirtualKeyboardV1, ZwpVirtualKeyboardV1Handler},
         },
+        wayland::wl_seat::WlSeat,
     },
 };
 
@@ -32,8 +36,8 @@ use xkbcommon_rs::{
 use crate::{
     seat::{SharedKeymap, compile_keymap},
     uinput::{
-        Device, UinputBuilder, UinputDevice,
-        EV_KEY, KEY_CAPSLOCK, KEY_LEFTALT, KEY_LEFTCTRL, KEY_LEFTMETA, KEY_LEFTSHIFT, KEY_NUMLOCK, KEY_RIGHTALT,
+        Device, EV_KEY, KEY_CAPSLOCK, KEY_LEFTALT, KEY_LEFTCTRL, KEY_LEFTMETA, KEY_LEFTSHIFT,
+        KEY_NUMLOCK, KEY_RIGHTALT, UinputBuilder, UinputDevice,
     },
 };
 
@@ -58,12 +62,14 @@ const LEVEL_MODS: &[u16] = &[KEY_LEFTSHIFT, KEY_RIGHTALT];
 
 /// Level modifier keys which only affect the xkb state and change the value of keysyms.
 pub fn is_modifier_keysym(sym: u32) -> bool {
-    matches!(sym,
-        0xffe1..=0xffee // Shift_L..Hyper_R
+    matches!(
+        sym,
+        0xffe1
+            ..=0xffee // Shift_L..Hyper_R
         | 0xff7e        // Mode_switch (ISO_Group_Shift / AltGr alias)
         | 0xff7f        // Num_Lock
         | 0xfe03        // ISO_Level3_Shift
-        | 0xfe11        // ISO_Level5_Shift
+        | 0xfe11 // ISO_Level5_Shift
     )
 }
 
@@ -139,7 +145,8 @@ impl ReverseMap {
                         continue;
                     };
                     let evdev = kc.saturating_sub(8) as u16;
-                    syms.entry(sym.raw()).or_insert_with(|| (evdev, modkeys.clone()));
+                    syms.entry(sym.raw())
+                        .or_insert_with(|| (evdev, modkeys.clone()));
                 }
             }
         }
@@ -164,7 +171,9 @@ impl ReverseMap {
                 None
             }
             Err(e) => {
-                let msg = e.downcast_ref::<&str>().copied()
+                let msg = e
+                    .downcast_ref::<&str>()
+                    .copied()
                     .or_else(|| e.downcast_ref::<String>().map(String::as_str))
                     .unwrap_or("unknown panic");
                 wlog!("panic looking up keysym {sym:#010x}: {msg}");
@@ -194,7 +203,10 @@ impl ZwpVirtualKeyboardManagerV1Handler for KeyboardManager {
         id: &Rc<ZwpVirtualKeyboardV1>,
     ) {
         id.set_forward_to_server(false);
-        let name = format!("wl-uinput-proxy virtual keyboard {}", DEVICE_IDX.fetch_add(1, Ordering::Relaxed));
+        let name = format!(
+            "wl-uinput-proxy virtual keyboard {}",
+            DEVICE_IDX.fetch_add(1, Ordering::Relaxed)
+        );
         let dev = match create_keyboard_device(&name) {
             Ok(dev) => Some(dev),
             Err(e) => {
@@ -272,7 +284,10 @@ impl Keyboard {
             return;
         };
         let desired = passthrough_mod_keys(client);
-        wdebug!("sync_passthrough desired={desired:?} held={:?}", self.passthrough_held);
+        wdebug!(
+            "sync_passthrough desired={desired:?} held={:?}",
+            self.passthrough_held
+        );
         let mut changed = false;
         for &m in &desired {
             if !self.passthrough_held.contains(&m) {
@@ -323,7 +338,10 @@ impl Keyboard {
                 .key_get_one_sym(xkb_kc)
                 .map_or(0, |s| s.raw());
             wdebug!("translate_key press: key={key} xkb_kc={xkb_kc} sym={sym:#010x}");
-            self.client.as_mut().unwrap().update_key(xkb_kc, KeyDirection::Down);
+            self.client
+                .as_mut()
+                .unwrap()
+                .update_key(xkb_kc, KeyDirection::Down);
 
             self.sync_passthrough();
             if is_modifier_keysym(sym) {
@@ -350,13 +368,25 @@ impl Keyboard {
                     _ => {} // already in the right state
                 }
             }
-            wdebug!("translate_key emit: EV_KEY out_kc={out_kc} 1  press_mods={pressed_mods:?} release_mods={released_mods:?}");
+            wdebug!(
+                "translate_key emit: EV_KEY out_kc={out_kc} 1  press_mods={pressed_mods:?} release_mods={released_mods:?}"
+            );
             self.dev.emit(EV_KEY, out_kc, 1);
             self.dev.sync();
-            self.pressed.insert(key, Pressed { out_kc, pressed_mods, released_mods });
+            self.pressed.insert(
+                key,
+                Pressed {
+                    out_kc,
+                    pressed_mods,
+                    released_mods,
+                },
+            );
         } else {
             wdebug!("translate_key release: key={key} xkb_kc={xkb_kc}");
-            self.client.as_mut().unwrap().update_key(xkb_kc, KeyDirection::Up);
+            self.client
+                .as_mut()
+                .unwrap()
+                .update_key(xkb_kc, KeyDirection::Up);
             if let Some(p) = self.pressed.remove(&key) {
                 self.dev.emit(EV_KEY, p.out_kc, 0);
                 for &m in p.pressed_mods.iter().rev() {
@@ -411,7 +441,9 @@ impl ZwpVirtualKeyboardV1Handler for Keyboard {
         self.ensure_reverse();
         if self.translating() {
             self.release_raw_mods(); // if any were pressed while we got the keymap
-            wdebug!("handle_modifiers (translating): depressed={mods_depressed:#010x} latched={mods_latched:#010x} locked={mods_locked:#010x} group={group}");
+            wdebug!(
+                "handle_modifiers (translating): depressed={mods_depressed:#010x} latched={mods_latched:#010x} locked={mods_locked:#010x} group={group}"
+            );
             self.client.as_mut().unwrap().update_mask(
                 mods_depressed,
                 mods_latched,
