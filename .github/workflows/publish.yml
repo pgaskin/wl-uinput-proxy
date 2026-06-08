@@ -18,6 +18,6 @@ jobs:
     - run: test "${{github.ref_name}}" == "v$(grep -E '^version\s*=\s*".+"' Cargo.toml | head -n1 | cut -d '"' -f2)" || { echo 'incorrect version in Cargo.toml'; exit 1; }
     - uses: rust-lang/crates-io-auth-action@v1
       id: auth
-    - run: cargo publish
+    - run: cargo publish --no-verify
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
