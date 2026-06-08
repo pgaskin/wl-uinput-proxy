@@ -1,0 +1,31 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - v*
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - run: test "${{github.ref_name}}" == "v$(grep -FA5 'name = "wl-uinput-proxy"' Cargo.lock | grep -E '^version\s*=\s*".+"' | head -n1 | cut -d '"' -f2)" || { echo 'incorrect version in Cargo.toml'; exit 1; }
+    - run: test "${{github.ref_name}}" == "v$(grep -E '^version\s*=\s*".+"' Cargo.toml | head -n1 | cut -d '"' -f2)" || { echo 'incorrect version in Cargo.toml'; exit 1; }
+    - uses: actions/github-script@v8
+      with:
+        script: |
+          const {data: {id: id}} = await github.rest.repos.createRelease({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            tag_name: context.ref.replace(/^refs\/tags\//, ''),
+            target_commitish: context.sha,
+            name: context.ref.replace(/^refs\/tags\//, ''),
+            draft: true,
+          })
+          core.setOutput('id', id)
+
+# TODO: build, attest, and attach binaries?
