@@ -11,6 +11,9 @@ permissions:
 
 jobs:
   publish:
+    environment:
+      name: publish
+      deployment: false
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
